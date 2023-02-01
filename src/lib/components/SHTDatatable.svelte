@@ -19,8 +19,8 @@
     ButtonDropdown,
   } from "sveltestrap";
 
-  import data from "./helpers/data";
-  import filter from "./helpers/filter";
+  import data from "../data";
+  import filter from "../filter";
   import TableButton from "./helpers/TableButtons.svelte"; 
 
   const types = {
