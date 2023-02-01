@@ -32,7 +32,7 @@
     description: "text",
   };
 
-  const filteredData = writable(data);
+  const filteredData = writable([]);
 
   const handleFiltering = (e) => {
     const { column, firstFilter, secondFilter } = e.detail;
@@ -43,7 +43,7 @@
 
   const table = createTable(filteredData, {
     sort: addSortBy({ disableMultiSort: true }),
-    page: addPagination({ initialPageSize: 10 }),
+    page: addPagination({ initialPageSize: 10, serverSide: true }),
     expand: addExpandedRows(),
   });
 
@@ -82,10 +82,37 @@
 
   const { headerRows, pageRows, tableAttrs, tableBodyAttrs, pluginStates } =
     table.createViewModel(columns);
-  const { pageIndex, pageCount, pageSize, hasNextPage, hasPreviousPage } =
-    pluginStates.page;
+  const { pageSize, pageIndex } = pluginStates.page;
+
+  let hasNextPage = false;
+  let hasPreviousPage = false;
+  let rowCount = null;
 
   let isOpen = false;
+
+  async function updateQuery() {
+    const q = new URLSearchParams();
+
+    q.set("limit", String($pageSize));
+    q.set("offset", String($pageSize * $pageIndex));
+
+    const fetchData = await fetch(`http://127.0.0.1:8000/groups/?${q}`);
+    const response = await fetchData.json();
+    const results = response.results;
+
+    hasPreviousPage = response.previous ? true : false;
+    hasNextPage = response.next ? true : false;
+    rowCount = response.count;
+
+    filteredData.update((_) =>
+      results.map((result) => ({
+        ...result,
+        description: `Testing ${result.id}`,
+      }))
+    );
+  }
+
+  updateQuery();
 </script>
 
 <table {...$tableAttrs} class="table table-hover">
@@ -155,35 +182,66 @@
     {/each}
   </tbody>
 </table>
-
 <div class="d-flex justify-content-center gap-1">
   <button
     class="btn btn-sm btn-dark"
-    on:click={() => ($pageIndex = 0)}
+    on:click={() => {
+      $pageIndex = 0;
+      updateQuery();
+    }}
     disabled={!$pageIndex}>{"<<"}</button
   >
   <button
     class="btn btn-sm btn-dark"
-    on:click={() => $pageIndex--}
-    disabled={!$hasPreviousPage}>{"<"}</button
+    on:click={() => {
+      --$pageIndex;
+      updateQuery();
+    }}
+    disabled={!hasPreviousPage}>{"<"}</button
   >
   <ButtonDropdown {isOpen} toggle={() => (isOpen = !isOpen)}>
     <DropdownToggle color="dark" caret>{$pageSize}</DropdownToggle>
     <DropdownMenu>
-      <DropdownItem on:click={() => ($pageSize = 1)}>1</DropdownItem>
-      <DropdownItem on:click={() => ($pageSize = 5)}>5</DropdownItem>
-      <DropdownItem on:click={() => ($pageSize = 10)}>10</DropdownItem>
-      <DropdownItem on:click={() => ($pageSize = 15)}>15</DropdownItem>
+      <DropdownItem
+        on:click={() => {
+          $pageSize = 1;
+          updateQuery();
+        }}>1</DropdownItem
+      >
+      <DropdownItem
+        on:click={() => {
+          $pageSize = 5;
+          updateQuery();
+        }}>5</DropdownItem
+      >
+      <DropdownItem
+        on:click={() => {
+          $pageSize = 10;
+          updateQuery();
+        }}>10</DropdownItem
+      >
+      <DropdownItem
+        on:click={() => {
+          $pageSize = 15;
+          updateQuery();
+        }}>15</DropdownItem
+      >
     </DropdownMenu>
   </ButtonDropdown>
   <button
     class="btn btn-sm btn-dark"
-    on:click={() => $pageIndex++}
-    disabled={!$hasNextPage}>{">"}</button
+    on:click={() => {
+      ++$pageIndex;
+      updateQuery();
+    }}
+    disabled={!hasNextPage}>{">"}</button
   >
   <button
     class="btn btn-sm btn-dark"
-    on:click={() => ($pageIndex = $pageCount - 1)}
-    disabled={$pageIndex == $pageCount - 1}>{">>"}</button
+    on:click={() => {
+      $pageIndex = Math.ceil(rowCount / $pageSize) - 1;
+      updateQuery();
+    }}
+    disabled={$pageIndex == Math.ceil(rowCount / $pageSize) - 1}>{">>"}</button
   >
 </div>
